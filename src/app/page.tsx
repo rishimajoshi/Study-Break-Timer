@@ -36,7 +36,7 @@ export default function StudyBreakTimerApp() {
   } = useAuth();
 
   const [activeTab, setActiveTab] = useState<ActiveTab>('timer');
-  const [showAuthScreen, setShowAuthScreen] = useState<boolean>(false);
+  const [showAuthScreen, setShowAuthScreen] = useState<boolean>(true);
   const [showCustomModal, setShowCustomModal] = useState<boolean>(false);
   const [showStopModal, setShowStopModal] = useState<boolean>(false);
   const [showEditProfileModal, setShowEditProfileModal] = useState<boolean>(false);
@@ -117,6 +117,7 @@ export default function StudyBreakTimerApp() {
           isLoading={isAuthLoading}
           isConfigured={isConfigured}
           onContinueAsGuest={() => setShowAuthScreen(false)}
+          onClose={() => setShowAuthScreen(false)}
         />
       </main>
     );
@@ -130,6 +131,7 @@ export default function StudyBreakTimerApp() {
         isLoggedIn={Boolean(user)}
         userEmail={user?.email}
         onSignOut={handleSignOut}
+        onOpenAuth={() => setShowAuthScreen(true)}
         isLocalMode={!isConfigured}
       />
 
@@ -200,7 +202,9 @@ export default function StudyBreakTimerApp() {
             <ProfileCard
               profile={profile}
               userEmail={user?.email}
+              isLoggedIn={Boolean(user)}
               onOpenEdit={() => setShowEditProfileModal(true)}
+              onOpenAuth={() => setShowAuthScreen(true)}
             />
 
             {/* Weekly Progress Bar Chart & Metrics */}

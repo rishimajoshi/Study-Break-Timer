@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useState, useEffect } from 'react';
-import { Bell, BellOff, Sparkles, LogOut } from 'lucide-react';
+import { Bell, BellOff, Sparkles, LogOut, LogIn } from 'lucide-react';
 import {
   isNotificationSupported,
   getNotificationPermission,
@@ -14,6 +14,7 @@ interface AppHeaderProps {
   isLoggedIn: boolean;
   userEmail?: string;
   onSignOut?: () => void;
+  onOpenAuth?: () => void;
   isLocalMode?: boolean;
 }
 
@@ -22,6 +23,7 @@ export const AppHeader: React.FC<AppHeaderProps> = ({
   isLoggedIn,
   userEmail,
   onSignOut,
+  onOpenAuth,
   isLocalMode,
 }) => {
   const [hasMounted, setHasMounted] = useState<boolean>(false);
@@ -92,6 +94,17 @@ export const AppHeader: React.FC<AppHeaderProps> = ({
               ) : (
                 <BellOff className="w-4 h-4 text-brand-muted" />
               )}
+            </button>
+          )}
+
+          {hasMounted && !isLoggedIn && onOpenAuth && (
+            <button
+              type="button"
+              onClick={onOpenAuth}
+              className="py-1 px-2.5 text-xs font-semibold text-brand-blue bg-brand-blue-soft hover:bg-brand-blue hover:text-white rounded-lg border border-brand-blue/30 transition-all flex items-center gap-1.5"
+            >
+              <LogIn className="w-3.5 h-3.5" />
+              <span>Sign In</span>
             </button>
           )}
 

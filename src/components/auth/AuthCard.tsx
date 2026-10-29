@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useState } from 'react';
-import { Mail, Lock, Eye, EyeOff, User, ArrowRight, KeyRound, Sparkles, AlertCircle, CheckCircle2 } from 'lucide-react';
+import { Mail, Lock, Eye, EyeOff, User, ArrowRight, KeyRound, Sparkles, AlertCircle, CheckCircle2, X } from 'lucide-react';
 
 interface AuthCardProps {
   onSignIn: (email: string, password: string) => Promise<{ success: boolean; error?: string }>;
@@ -12,6 +12,7 @@ interface AuthCardProps {
   isLoading: boolean;
   isConfigured: boolean;
   onContinueAsGuest?: () => void;
+  onClose?: () => void;
 }
 
 export const AuthCard: React.FC<AuthCardProps> = ({
@@ -23,6 +24,7 @@ export const AuthCard: React.FC<AuthCardProps> = ({
   isLoading,
   isConfigured,
   onContinueAsGuest,
+  onClose,
 }) => {
   const [mode, setMode] = useState<'signin' | 'signup' | 'forgot'>('signin');
   const [email, setEmail] = useState('');
@@ -62,7 +64,18 @@ export const AuthCard: React.FC<AuthCardProps> = ({
   };
 
   return (
-    <div className="w-full max-w-sm mx-auto bg-white rounded-3xl p-6 sm:p-8 border border-brand-border shadow-card">
+    <div className="w-full max-w-sm mx-auto bg-white rounded-3xl p-6 sm:p-8 border border-brand-border shadow-card relative">
+      {onClose && (
+        <button
+          type="button"
+          onClick={onClose}
+          aria-label="Close login screen"
+          className="absolute top-5 right-5 p-1.5 text-brand-muted hover:text-brand-navy rounded-full hover:bg-slate-100 transition-colors"
+        >
+          <X className="w-5 h-5" />
+        </button>
+      )}
+
       {/* Stopwatch illustration header */}
       <div className="flex flex-col items-center text-center mb-6">
         <div className="w-16 h-16 rounded-3xl bg-brand-blue-soft border-2 border-brand-blue/20 flex items-center justify-center text-brand-blue mb-3 shadow-subtle">
