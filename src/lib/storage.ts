@@ -26,6 +26,12 @@ export const getSavedActiveTimer = (): ActiveTimerState | null => {
 
     // Validate structure
     if (!parsed || typeof parsed.remainingSeconds !== 'number') {
+      window.localStorage.removeItem(TIMER_STORAGE_KEY);
+      return null;
+    }
+
+    if (parsed.status === 'completed' || parsed.status === 'idle') {
+      window.localStorage.removeItem(TIMER_STORAGE_KEY);
       return null;
     }
 
@@ -34,12 +40,14 @@ export const getSavedActiveTimer = (): ActiveTimerState | null => {
       const now = Date.now();
       const diffMs = parsed.targetEndAt - now;
       const calculatedRemaining = Math.max(0, Math.ceil(diffMs / 1000));
-      parsed.remainingSeconds = calculatedRemaining;
-      parsed.lastUpdated = now;
 
       if (calculatedRemaining <= 0) {
-        parsed.status = 'completed';
+        window.localStorage.removeItem(TIMER_STORAGE_KEY);
+        return null;
       }
+
+      parsed.remainingSeconds = calculatedRemaining;
+      parsed.lastUpdated = now;
     }
 
     return parsed;

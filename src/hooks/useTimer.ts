@@ -28,69 +28,107 @@ export const useTimer = ({
   const [totalDurationSeconds, setTotalDurationSeconds] = useState<number>(defaultFocusMinutes * 60);
   const [remainingSeconds, setRemainingSeconds] = useState<number>(defaultFocusMinutes * 60);
 
-  // Timestamp tracking for accurate backgrounding/sleep recovery
+  // Completion & Break suggestions
+  const [showCompletionModal, setShowCompletionModal] = useState<boolean>(false);
+  const [breakSuggestion, setBreakSuggestion] = useState<BreakActivity | null>(null);
+
+  // Mutable refs for stable closures
   const targetEndAtRef = useRef<number | null>(null);
   const startedAtRef = useRef<number | null>(null);
   const timerIntervalRef = useRef<NodeJS.Timeout | null>(null);
   const completedHandledRef = useRef<boolean>(false);
+  const onSessionCompletedRef = useRef(onSessionCompleted);
+  const phaseRef = useRef<TimerPhase>(phase);
+  const taskTitleRef = useRef<string>(taskTitle);
+  const totalDurationSecondsRef = useRef<number>(totalDurationSeconds);
+  const focusPresetMinutesRef = useRef<number>(focusPresetMinutes);
+  const remainingSecondsRef = useRef<number>(remainingSeconds);
+  const statusRef = useRef<TimerStatus>(status);
 
-  // Completion / Break suggestion state
-  const [showCompletionModal, setShowCompletionModal] = useState<boolean>(false);
-  const [breakSuggestion, setBreakSuggestion] = useState<BreakActivity | null>(null);
+  // Keep refs synchronized
+  useEffect(() => {
+    onSessionCompletedRef.current = onSessionCompleted;
+  }, [onSessionCompleted]);
 
-  // Reconcile and save state
-  const syncStateToStorage = useCallback(
+  useEffect(() => {
+    phaseRef.current = phase;
+  }, [phase]);
+
+  useEffect(() => {
+    taskTitleRef.current = taskTitle;
+  }, [taskTitle]);
+
+  useEffect(() => {
+    totalDurationSecondsRef.current = totalDurationSeconds;
+  }, [totalDurationSeconds]);
+
+  useEffect(() => {
+    focusPresetMinutesRef.current = focusPresetMinutes;
+  }, [focusPresetMinutes]);
+
+  useEffect(() => {
+    remainingSecondsRef.current = remainingSeconds;
+  }, [remainingSeconds]);
+
+  useEffect(() => {
+    statusRef.current = status;
+  }, [status]);
+
+  // Persist snapshot to storage (called only on explicit transitions)
+  const persistState = useCallback(
     (override?: Partial<ActiveTimerState>) => {
-      if (status === 'idle') {
+      const curStatus = override?.status ?? statusRef.current;
+      if (curStatus === 'idle') {
         clearActiveTimer();
         return;
       }
 
       const activeState: ActiveTimerState = {
-        phase,
-        status,
-        taskTitle,
-        presetMinutes: focusPresetMinutes,
-        totalDurationSeconds,
-        remainingSeconds,
+        phase: override?.phase ?? phaseRef.current,
+        status: curStatus,
+        taskTitle: override?.taskTitle ?? taskTitleRef.current,
+        presetMinutes: override?.presetMinutes ?? focusPresetMinutesRef.current,
+        totalDurationSeconds: override?.totalDurationSeconds ?? totalDurationSecondsRef.current,
+        remainingSeconds: override?.remainingSeconds ?? remainingSecondsRef.current,
         startedAt: startedAtRef.current,
         targetEndAt: targetEndAtRef.current,
-        pausedRemainingSeconds: status === 'paused' ? remainingSeconds : null,
+        pausedRemainingSeconds: curStatus === 'paused' ? (override?.remainingSeconds ?? remainingSecondsRef.current) : null,
         lastUpdated: Date.now(),
         ...override,
       };
 
       saveActiveTimer(activeState);
     },
-    [phase, status, taskTitle, focusPresetMinutes, totalDurationSeconds, remainingSeconds]
+    []
   );
 
-  // Stop the ticking interval
-  const clearIntervalRef = useCallback(() => {
+  // Stop the interval
+  const clearIntervalTimer = useCallback(() => {
     if (timerIntervalRef.current) {
       clearInterval(timerIntervalRef.current);
       timerIntervalRef.current = null;
     }
   }, []);
 
-  // Handle completion when countdown reaches 0
+  // Completion handler (stable, uses refs)
   const handleCountdownFinished = useCallback(async () => {
-    clearIntervalRef();
+    clearIntervalTimer();
     if (completedHandledRef.current) return;
     completedHandledRef.current = true;
 
     setStatus('completed');
     setRemainingSeconds(0);
+    clearActiveTimer();
     playGentleChime();
 
-    const currentPhase = phase;
-    const currentTask = taskTitle.trim() || null;
-    const planned = totalDurationSeconds;
+    const curPhase = phaseRef.current;
+    const curTask = taskTitleRef.current.trim() || null;
+    const planned = totalDurationSecondsRef.current;
 
-    if (currentPhase === 'focus') {
+    if (curPhase === 'focus') {
       sendBrowserNotification('Focus session complete! 🎉', {
-        body: currentTask
-          ? `Great job completing "${currentTask}"! Time for a well-deserved break.`
+        body: curTask
+          ? `Great job completing "${curTask}"! Time for a well-deserved break.`
           : 'Great job! Take a moment to rest and recharge.',
       });
 
@@ -99,8 +137,8 @@ export const useTimer = ({
       setShowCompletionModal(true);
 
       const completedSession: StudySession = {
-        id: (typeof crypto !== 'undefined' && crypto.randomUUID) ? crypto.randomUUID() : `session-${Date.now()}`,
-        task_title: currentTask,
+        id: typeof crypto !== 'undefined' && crypto.randomUUID ? crypto.randomUUID() : `session-${Date.now()}`,
+        task_title: curTask,
         session_type: 'focus',
         planned_duration_seconds: planned,
         actual_duration_seconds: planned,
@@ -110,25 +148,23 @@ export const useTimer = ({
         created_at: new Date().toISOString(),
       };
 
-      if (onSessionCompleted) {
+      if (onSessionCompletedRef.current) {
         try {
-          await onSessionCompleted(completedSession);
+          await onSessionCompletedRef.current(completedSession);
         } catch (err) {
           console.error('Failed to notify session completed callback:', err);
         }
       }
     } else {
-      // Break finished
+      // Break session ended
       sendBrowserNotification('Break time ended ⏰', {
         body: 'Feeling refreshed? Ready for your next focus session when you are!',
       });
       setShowCompletionModal(true);
     }
+  }, [clearIntervalTimer]);
 
-    clearActiveTimer();
-  }, [clearIntervalRef, phase, taskTitle, totalDurationSeconds, onSessionCompleted]);
-
-  // Tick calculation based on target timestamp
+  // Interval tick function
   const tick = useCallback(() => {
     if (!targetEndAtRef.current) return;
 
@@ -143,73 +179,77 @@ export const useTimer = ({
     }
   }, [handleCountdownFinished]);
 
-  // Start ticking interval
+  // Start ticking
   const startInterval = useCallback(() => {
-    clearIntervalRef();
+    clearIntervalTimer();
     timerIntervalRef.current = setInterval(tick, 250);
-  }, [clearIntervalRef, tick]);
+  }, [clearIntervalTimer, tick]);
 
-  // Recover active session on initial mount
+  // RECOVER ACTIVE SESSION ONCE ON MOUNT ONLY
   useEffect(() => {
     const saved = getSavedActiveTimer();
     if (!saved) return;
 
+    // If saved state is already completed or expired, discard it cleanly
+    if (saved.status === 'completed' || saved.remainingSeconds <= 0) {
+      clearActiveTimer();
+      return;
+    }
+
     setPhase(saved.phase);
     setTaskTitle(saved.taskTitle || '');
-    setFocusPresetMinutes(saved.presetMinutes || defaultFocusMinutes);
+    const preset = saved.presetMinutes || defaultFocusMinutes;
+    setFocusPresetMinutes(preset);
     setTotalDurationSeconds(saved.totalDurationSeconds);
     completedHandledRef.current = false;
 
     if (saved.status === 'running') {
-      if (saved.remainingSeconds > 0 && saved.targetEndAt) {
+      if (saved.targetEndAt && saved.targetEndAt > Date.now()) {
         targetEndAtRef.current = saved.targetEndAt;
         startedAtRef.current = saved.startedAt;
         setRemainingSeconds(saved.remainingSeconds);
         setStatus('running');
         startInterval();
       } else {
-        // Was running but completed while away
-        setRemainingSeconds(0);
-        setStatus('completed');
-        handleCountdownFinished();
+        // Expired while closed
+        clearActiveTimer();
+        setStatus('idle');
+        setRemainingSeconds(preset * 60);
       }
     } else if (saved.status === 'paused') {
       setStatus('paused');
-      setRemainingSeconds(saved.pausedRemainingSeconds || saved.remainingSeconds);
+      const rem = saved.pausedRemainingSeconds ?? saved.remainingSeconds;
+      setRemainingSeconds(rem);
       startedAtRef.current = saved.startedAt;
     }
 
-    return () => clearIntervalRef();
-  }, [defaultFocusMinutes, startInterval, handleCountdownFinished, clearIntervalRef]);
-
-  // Synchronize state changes to localStorage
-  useEffect(() => {
-    if (status !== 'idle') {
-      syncStateToStorage();
-    }
-  }, [status, remainingSeconds, phase, syncStateToStorage]);
+    return () => clearIntervalTimer();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []); // Run exactly once on mount
 
   // Select Preset (only allowed when idle)
   const selectPreset = useCallback((minutes: number) => {
-    if (status !== 'idle') return;
+    if (statusRef.current !== 'idle') return;
     setFocusPresetMinutes(minutes);
-    setTotalDurationSeconds(minutes * 60);
-    setRemainingSeconds(minutes * 60);
-  }, [status]);
+    const secs = minutes * 60;
+    setTotalDurationSeconds(secs);
+    setRemainingSeconds(secs);
+  }, []);
 
   // Set Custom Duration in minutes
   const setCustomDuration = useCallback((minutes: number) => {
-    if (status !== 'idle') return;
+    if (statusRef.current !== 'idle') return;
     const validMinutes = Math.max(1, Math.min(180, Math.round(minutes)));
     setFocusPresetMinutes(validMinutes);
-    setTotalDurationSeconds(validMinutes * 60);
-    setRemainingSeconds(validMinutes * 60);
-  }, [status]);
+    const secs = validMinutes * 60;
+    setTotalDurationSeconds(secs);
+    setRemainingSeconds(secs);
+  }, []);
 
   // Action: Start
   const startTimer = useCallback(() => {
     const now = Date.now();
-    const duration = remainingSeconds > 0 ? remainingSeconds : totalDurationSeconds;
+    const duration = remainingSecondsRef.current > 0 ? remainingSecondsRef.current : totalDurationSecondsRef.current;
     const targetEnd = now + duration * 1000;
 
     targetEndAtRef.current = targetEnd;
@@ -220,27 +260,47 @@ export const useTimer = ({
 
     setStatus('running');
     startInterval();
-  }, [remainingSeconds, totalDurationSeconds, startInterval]);
+
+    persistState({
+      status: 'running',
+      remainingSeconds: duration,
+      targetEndAt: targetEnd,
+      startedAt: startedAtRef.current,
+    });
+  }, [startInterval, persistState]);
 
   // Action: Pause
   const pauseTimer = useCallback(() => {
-    clearIntervalRef();
+    clearIntervalTimer();
     targetEndAtRef.current = null;
     setStatus('paused');
-  }, [clearIntervalRef]);
+
+    persistState({
+      status: 'paused',
+      remainingSeconds: remainingSecondsRef.current,
+    });
+  }, [clearIntervalTimer, persistState]);
 
   // Action: Resume
   const resumeTimer = useCallback(() => {
     const now = Date.now();
-    const targetEnd = now + remainingSeconds * 1000;
+    const duration = remainingSecondsRef.current;
+    const targetEnd = now + duration * 1000;
     targetEndAtRef.current = targetEnd;
+
     setStatus('running');
     startInterval();
-  }, [remainingSeconds, startInterval]);
 
-  // Action: Stop / Cancel early (not counted as completed)
+    persistState({
+      status: 'running',
+      remainingSeconds: duration,
+      targetEndAt: targetEnd,
+    });
+  }, [startInterval, persistState]);
+
+  // Action: Stop / Cancel early
   const stopTimer = useCallback(() => {
-    clearIntervalRef();
+    clearIntervalTimer();
     targetEndAtRef.current = null;
     startedAtRef.current = null;
     completedHandledRef.current = false;
@@ -248,52 +308,66 @@ export const useTimer = ({
 
     setStatus('idle');
     setPhase('focus');
-    const defaultSeconds = focusPresetMinutes * 60;
+    const defaultSeconds = focusPresetMinutesRef.current * 60;
     setTotalDurationSeconds(defaultSeconds);
     setRemainingSeconds(defaultSeconds);
     setShowCompletionModal(false);
-  }, [clearIntervalRef, focusPresetMinutes]);
+  }, [clearIntervalTimer]);
 
   // Transition to break
-  const startBreak = useCallback((customBreakMins?: number) => {
-    clearIntervalRef();
-    const durationMins = customBreakMins ?? breakMinutes;
-    const durationSecs = durationMins * 60;
+  const startBreak = useCallback(
+    (customBreakMins?: number) => {
+      clearIntervalTimer();
+      const durationMins = customBreakMins ?? breakMinutes;
+      const durationSecs = durationMins * 60;
 
-    setPhase('break');
-    setTotalDurationSeconds(durationSecs);
-    setRemainingSeconds(durationSecs);
-    setShowCompletionModal(false);
+      setPhase('break');
+      setTotalDurationSeconds(durationSecs);
+      setRemainingSeconds(durationSecs);
+      setShowCompletionModal(false);
 
-    const now = Date.now();
-    targetEndAtRef.current = now + durationSecs * 1000;
-    startedAtRef.current = now;
-    completedHandledRef.current = false;
+      const now = Date.now();
+      const targetEnd = now + durationSecs * 1000;
+      targetEndAtRef.current = targetEnd;
+      startedAtRef.current = now;
+      completedHandledRef.current = false;
 
-    setStatus('running');
-    startInterval();
-  }, [breakMinutes, clearIntervalRef, startInterval]);
+      setStatus('running');
+      startInterval();
+
+      persistState({
+        phase: 'break',
+        status: 'running',
+        totalDurationSeconds: durationSecs,
+        remainingSeconds: durationSecs,
+        targetEndAt: targetEnd,
+        startedAt: now,
+      });
+    },
+    [breakMinutes, clearIntervalTimer, startInterval, persistState]
+  );
 
   // Skip break or restart new focus session
   const startNextFocusSession = useCallback(() => {
-    clearIntervalRef();
+    clearIntervalTimer();
     clearActiveTimer();
 
     setPhase('focus');
     setStatus('idle');
-    const focusSecs = focusPresetMinutes * 60;
+    const focusSecs = focusPresetMinutesRef.current * 60;
     setTotalDurationSeconds(focusSecs);
     setRemainingSeconds(focusSecs);
     setShowCompletionModal(false);
     targetEndAtRef.current = null;
     startedAtRef.current = null;
     completedHandledRef.current = false;
-  }, [focusPresetMinutes, clearIntervalRef]);
+  }, [clearIntervalTimer]);
 
   // Calculate percentage progress (0 to 100)
-  const progressPercent = totalDurationSeconds > 0
-    ? Math.min(100, Math.max(0, ((totalDurationSeconds - remainingSeconds) / totalDurationSeconds) * 100))
-    : 0;
+  const progressPercent =
+    totalDurationSeconds > 0
+      ? Math.min(100, Math.max(0, ((totalDurationSeconds - remainingSeconds) / totalDurationSeconds) * 100))
+      : 0;
 
   return {
     phase,

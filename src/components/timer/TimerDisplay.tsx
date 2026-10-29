@@ -18,8 +18,9 @@ export const TimerDisplay: React.FC<TimerDisplayProps> = ({
   phase,
   status,
 }) => {
-  const minutes = Math.floor(remainingSeconds / 60);
-  const seconds = remainingSeconds % 60;
+  const safeRemaining = Math.max(0, Math.floor(remainingSeconds || 0));
+  const minutes = Math.floor(safeRemaining / 60);
+  const seconds = safeRemaining % 60;
   const formattedMinutes = String(minutes).padStart(2, '0');
   const formattedSeconds = String(seconds).padStart(2, '0');
 
@@ -28,8 +29,12 @@ export const TimerDisplay: React.FC<TimerDisplayProps> = ({
   const strokeWidth = 10;
   const radius = (size - strokeWidth) / 2;
   const circumference = 2 * Math.PI * radius;
-  // Stroke dashoffset: at 0% progress dashoffset is 0, at 100% it's circumference
-  const strokeDashoffset = circumference - (progressPercent / 100) * circumference;
+  
+  // Guard against NaN or out-of-range percentage
+  const validPercent = Number.isFinite(progressPercent)
+    ? Math.min(100, Math.max(0, progressPercent))
+    : 0;
+  const strokeDashoffset = circumference - (validPercent / 100) * circumference;
 
   const isBreak = phase === 'break';
   const primaryColor = isBreak ? '#0D9488' : '#2878E8'; // brand teal or brand blue
