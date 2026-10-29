@@ -24,9 +24,11 @@ export const AppHeader: React.FC<AppHeaderProps> = ({
   onSignOut,
   isLocalMode,
 }) => {
+  const [hasMounted, setHasMounted] = useState<boolean>(false);
   const [notificationStatus, setNotificationStatus] = useState<NotificationPermission>('default');
 
   useEffect(() => {
+    setHasMounted(true);
     if (isNotificationSupported()) {
       setNotificationStatus(getNotificationPermission());
     }
@@ -69,7 +71,7 @@ export const AppHeader: React.FC<AppHeaderProps> = ({
         </div>
 
         <div className="flex items-center space-x-2">
-          {isNotificationSupported() && (
+          {hasMounted && isNotificationSupported() && (
             <button
               type="button"
               onClick={handleToggleNotifications}
@@ -93,7 +95,7 @@ export const AppHeader: React.FC<AppHeaderProps> = ({
             </button>
           )}
 
-          {isLoggedIn && onSignOut && (
+          {hasMounted && isLoggedIn && onSignOut && (
             <button
               type="button"
               onClick={onSignOut}
