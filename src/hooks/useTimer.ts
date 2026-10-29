@@ -236,14 +236,21 @@ export const useTimer = ({
     setRemainingSeconds(secs);
   }, []);
 
-  // Set Custom Duration in minutes
-  const setCustomDuration = useCallback((minutes: number) => {
+  // Set Custom Duration in hours, minutes, and seconds
+  const setCustomDuration = useCallback((hOrMins: number, m?: number, s?: number) => {
     if (statusRef.current !== 'idle') return;
-    const validMinutes = Math.max(1, Math.min(180, Math.round(minutes)));
-    setFocusPresetMinutes(validMinutes);
-    const secs = validMinutes * 60;
-    setTotalDurationSeconds(secs);
-    setRemainingSeconds(secs);
+    let totalSecs = 0;
+    if (m !== undefined && s !== undefined) {
+      // Called with (hours, minutes, seconds)
+      totalSecs = Math.max(5, Math.min(43200, Math.round(hOrMins * 3600 + m * 60 + s)));
+    } else {
+      // Called with (minutes)
+      totalSecs = Math.max(5, Math.min(43200, Math.round(hOrMins * 60)));
+    }
+    const approxMins = Math.max(1, Math.round(totalSecs / 60));
+    setFocusPresetMinutes(approxMins);
+    setTotalDurationSeconds(totalSecs);
+    setRemainingSeconds(totalSecs);
   }, []);
 
   // Action: Start

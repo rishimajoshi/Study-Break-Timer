@@ -160,6 +160,7 @@ export default function StudyBreakTimerApp() {
             {/* Preset Selector */}
             <PresetSelector
               currentPresetMinutes={focusPresetMinutes}
+              totalDurationSeconds={totalDurationSeconds}
               status={status}
               onSelectPreset={selectPreset}
               onOpenCustomModal={() => setShowCustomModal(true)}
@@ -220,9 +221,9 @@ export default function StudyBreakTimerApp() {
       {/* Custom Duration Modal */}
       <CustomDurationModal
         isOpen={showCustomModal}
-        currentMinutes={focusPresetMinutes}
+        totalDurationSeconds={totalDurationSeconds}
         onClose={() => setShowCustomModal(false)}
-        onApply={setCustomDuration}
+        onApply={(h, m, s) => setCustomDuration(h, m, s)}
       />
 
       {/* Stop Session Early Confirmation Dialog */}
