@@ -204,6 +204,48 @@ export const useAuth = () => {
     }
   };
 
+  const signInWithGoogle = async () => {
+    setAuthError(null);
+    setAuthMessage(null);
+    setIsLoading(true);
+
+    if (!isConfigured) {
+      setAuthError('Google sign in requires connecting your Supabase project in .env.local');
+      setIsLoading(false);
+      return { success: false, error: 'Supabase unconfigured' };
+    }
+
+    const supabase = createClient();
+    if (!supabase) {
+      setIsLoading(false);
+      return { success: false, error: 'Supabase client unavailable' };
+    }
+
+    try {
+      const redirectUrl = `${typeof window !== 'undefined' ? window.location.origin : ''}/auth/callback`;
+      const { error } = await supabase.auth.signInWithOAuth({
+        provider: 'google',
+        options: {
+          redirectTo: redirectUrl,
+        },
+      });
+
+      if (error) {
+        setAuthError(error.message);
+        setIsLoading(false);
+        return { success: false, error: error.message };
+      }
+
+      // Supabase redirects to Google login page
+      return { success: true };
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : 'Google sign-in error occurred';
+      setAuthError(msg);
+      setIsLoading(false);
+      return { success: false, error: msg };
+    }
+  };
+
   const signOut = async () => {
     setIsLoading(true);
     if (!isConfigured) {
@@ -311,6 +353,7 @@ export const useAuth = () => {
     authMessage,
     signUp,
     signIn,
+    signInWithGoogle,
     signOut,
     resetPassword,
     updateProfile,

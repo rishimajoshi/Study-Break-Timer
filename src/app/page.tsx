@@ -30,6 +30,7 @@ export default function StudyBreakTimerApp() {
     authMessage,
     signIn,
     signUp,
+    signInWithGoogle,
     signOut,
     resetPassword,
     updateProfile,
@@ -111,6 +112,7 @@ export default function StudyBreakTimerApp() {
             if (res.success) setShowAuthScreen(false);
             return res;
           }}
+          onSignInWithGoogle={signInWithGoogle}
           onResetPassword={resetPassword}
           authError={authError}
           authMessage={authMessage}
