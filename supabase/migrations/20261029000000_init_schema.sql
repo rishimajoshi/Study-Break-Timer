@@ -1,4 +1,5 @@
 -- Study Break Timer Database Schema & Row Level Security (RLS)
+-- Safe, idempotent script that can be run repeatedly without errors
 
 -- 1. Create profiles table
 CREATE TABLE IF NOT EXISTS public.profiles (
@@ -32,41 +33,41 @@ CREATE INDEX IF NOT EXISTS idx_study_sessions_started_at ON public.study_session
 ALTER TABLE public.profiles ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.study_sessions ENABLE ROW LEVEL SECURITY;
 
--- 5. Profiles RLS Policies
--- Users can view their own profile
+-- 5. Profiles RLS Policies (Safely drop if exists, then create)
+DROP POLICY IF EXISTS "Users can view own profile" ON public.profiles;
 CREATE POLICY "Users can view own profile" 
 ON public.profiles FOR SELECT 
 USING (auth.uid() = id);
 
--- Users can insert their own profile
+DROP POLICY IF EXISTS "Users can insert own profile" ON public.profiles;
 CREATE POLICY "Users can insert own profile" 
 ON public.profiles FOR INSERT 
 WITH CHECK (auth.uid() = id);
 
--- Users can update their own profile
+DROP POLICY IF EXISTS "Users can update own profile" ON public.profiles;
 CREATE POLICY "Users can update own profile" 
 ON public.profiles FOR UPDATE 
 USING (auth.uid() = id)
 WITH CHECK (auth.uid() = id);
 
--- 6. Study Sessions RLS Policies
--- Users can view their own sessions
+-- 6. Study Sessions RLS Policies (Safely drop if exists, then create)
+DROP POLICY IF EXISTS "Users can view own study sessions" ON public.study_sessions;
 CREATE POLICY "Users can view own study sessions" 
 ON public.study_sessions FOR SELECT 
 USING (auth.uid() = user_id);
 
--- Users can insert their own sessions
+DROP POLICY IF EXISTS "Users can create own study sessions" ON public.study_sessions;
 CREATE POLICY "Users can create own study sessions" 
 ON public.study_sessions FOR INSERT 
 WITH CHECK (auth.uid() = user_id);
 
--- Users can update their own sessions
+DROP POLICY IF EXISTS "Users can update own study sessions" ON public.study_sessions;
 CREATE POLICY "Users can update own study sessions" 
 ON public.study_sessions FOR UPDATE 
 USING (auth.uid() = user_id)
 WITH CHECK (auth.uid() = user_id);
 
--- Users can delete their own sessions
+DROP POLICY IF EXISTS "Users can delete own study sessions" ON public.study_sessions;
 CREATE POLICY "Users can delete own study sessions" 
 ON public.study_sessions FOR DELETE 
 USING (auth.uid() = user_id);
